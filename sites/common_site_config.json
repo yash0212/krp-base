@@ -1,0 +1,9 @@
+{
+    "default_site": "krp.kalvium",
+    "serve_default_site": true,
+    "webserver_port": 8080,
+    "dns_multitenant": true,
+    "use_redis_auth": false,
+    "restart_supervisor_on_update": true,
+    "restart_systemd_on_update": false
+}

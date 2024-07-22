@@ -1,0 +1,6 @@
+[
+    {
+        "url": "https://{{ PAT }}@github.com/Kalvi-Education/frappe-krp.git",
+        "branch": "main"
+    }
+]

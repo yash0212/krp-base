@@ -1,0 +1,5 @@
+{
+    "use_redis_auth": false,
+    "restart_supervisor_on_update": true,
+    "restart_systemd_on_update": false
+}
