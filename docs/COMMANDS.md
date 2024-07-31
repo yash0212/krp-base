@@ -7,7 +7,7 @@ bench new-site library.localhost --db-type postgres --db-name frappe --db-root-u
     bench pip install <package_name>
 
 ## Command to install krp app on site
-    bench --site kalvium.localhost install-app krp
+    bench --site krp.localhost install-app krp
 
 ## Notes
 - DocType has to have prefix. Reason - Frappe doesn't handle DocType name collision from multiple apps
@@ -22,7 +22,7 @@ bench new-site library.localhost --db-type postgres --db-name frappe --db-root-u
 3. sudo mv ./kind /usr/local/bin/kind
 
 ### 2. Create KinD cluster
-    kind create cluster --name kalvium
+    kind create cluster --name krp
 
 ### 3. Add Ingress container
     kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/cloud/deploy.yaml
@@ -33,7 +33,7 @@ bench new-site library.localhost --db-type postgres --db-name frappe --db-root-u
 ## Build command
     docker build -t krp \
         --build-arg=APPS_JSON_BASE64=$APPS_JSON_BASE64 \
-        --build-arg=FRAPPE_SITE_NAME_HEADER="krp.kalvium" \
+        --build-arg=FRAPPE_SITE_NAME_HEADER="frontend" \
         .
 
 ## Start backend container
@@ -47,10 +47,10 @@ bench new-site library.localhost --db-type postgres --db-name frappe --db-root-u
         -e FRAPPE_REDIS_QUEUE='redis://172.17.0.1:6666' \
         -e FRAPPE_REDIS_CACHE='redis://172.17.0.1:7777' \
         -e FRAPPE_DB_TYPE='mariadb' \
-        -e FRAPPE_DB_HOST='172.17.0.4' \
+        -e FRAPPE_DB_HOST='172.17.0.1' \
         -e FRAPPE_DB_PORT='3306' \
         -e DB_NAME='krp' \
-        -e DB_PASSWORD='yd8MGNQ7FxSkfyXe' \
+        -e DB_PASSWORD='abcdefg' \
         krp
 
 #### Postgres full config
@@ -82,20 +82,49 @@ bench new-site library.localhost --db-type postgres --db-name frappe --db-root-u
     docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' redis-queue
 
 ## Command to run frontend container(locally)
-    docker run -d --name frontend -p 8080:8080 -e BACKEND='172.17.0.3:8000' -e FRAPPE_SITE_NAME_HEADER='krp.kalvium' --entrypoint nginx-entrypoint.sh krp
+    docker run -d --name frontend -p 8080:8080 -e BACKEND='172.17.0.3:8000' -e FRAPPE_SITE_NAME_HEADER='frontend' --entrypoint nginx-entrypoint.sh krp
+
+## Command to first time setup
+    docker run -d --name one-time -p 8000:8000 \
+        -e FRAPPE_REDIS_QUEUE='redis://172.17.0.1:6666' \
+        -e FRAPPE_REDIS_CACHE='redis://172.17.0.1:7777' \
+        -e FRAPPE_DB_TYPE='mariadb' \
+        -e FRAPPE_DB_HOST='172.17.0.1' \
+        -e FRAPPE_DB_PORT='3306' \
+        -e DB_HOST='172.17.0.1' \
+        -e DB_NAME='krp' \
+        -e DB_PASSWORD='abcdefg' \
+        -e DB_ROOT_USERNAME='root' \
+        -e DB_ROOT_PASSWORD='admin' \
+        -e ADMIN_PASSWORD='admin' \
+        --entrypoint first-run.sh \
+        krp
+
+## Command to run migration setup
+    docker run -d --name bench-migrate -p 8000:8000 \
+        -e FRAPPE_REDIS_QUEUE='redis://172.17.0.1:6666' \
+        -e FRAPPE_REDIS_CACHE='redis://172.17.0.1:7777' \
+        -e FRAPPE_DB_TYPE='mariadb' \
+        -e FRAPPE_DB_HOST='172.17.0.1' \
+        -e FRAPPE_DB_PORT='3306' \
+        -e DB_NAME='krp' \
+        -e DB_PASSWORD='abcdefg' \
+        -e ADMIN_PASSWORD='admin' \
+        --entrypoint migrate.sh \
+        krp
 
 ## Requirement
 2 bench having single site each from same bench image but different domain name
 
 ## New Site command MariaDB
-    bench new-site --db-host 172.17.0.2 --db-name krp --db-root-username root --db-root-password admin --admin-password admin krp.kalvium
+    bench new-site --db-host 172.17.0.2 --db-name krp --db-root-username root --db-root-password admin --admin-password admin frontend
 
 ## New Site command PostGres
-    bench new-site --db-host 172.17.0.1 --db-name krp --db-root-username postgres --db-root-password mysecretpassword --db-type postgres --admin-password admin krp.kalvium
+    bench new-site --db-host 172.17.0.1 --db-name krp --db-root-username postgres --db-root-password mysecretpassword --db-type postgres --admin-password admin frontend
 
-## MariaDB krp.kalvium
+## MariaDB frontend
     {
-        "db_host": "172.17.0.2",
+        "db_host": "172.17.0.4",
         "db_name": "krp",
         "db_password": "yd8MGNQ7FxSkfyXe",
         "db_type": "mariadb"
@@ -103,6 +132,21 @@ bench new-site library.localhost --db-type postgres --db-name frappe --db-root-u
 ## Redis start command
     docker run -d --name redis-queue -p 6666:6379 redis:6.2-alpine
     docker run -d --name redis-cache -p 7777:6379 redis:6.2-alpine
+
+## Setup MariaDB Locally
+### Start container
+    docker run --name mariadb -e MYSQL_ROOT_PASSWORD=admin -d -p 3306:3306 mariadb:10.6
+### Get  into container
+    docker exec -it mariadb mysql -u root -p
+### Create db
+    CREATE DATABASE krp;
+### Crate user
+    CREATE USER 'krp'@'%' IDENTIFIED BY 'abcdefg';
+### Give permissions
+    GRANT ALL PRIVILEGES ON krp.* TO 'krp'@'%';
+### Regenerate permissions
+    FLUSH PRIVILEGES;
+
 
 ## Misc
 https://github.com/frappe/frappe_docker/blob/main/docs/troubleshoot.md

@@ -27,5 +27,8 @@ fi
 
 ls -1 apps > sites/apps.txt
 
-# Execute the original CMD
-exec "$@"
+# Install all apps
+bench install-app $(ls -1 apps)
+
+# Run migration(MIGHT not be required as installation will do the job already)
+bench --site frontend migrate --skip-search-index

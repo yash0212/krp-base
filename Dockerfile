@@ -7,6 +7,11 @@ COPY resources/nginx-entrypoint.sh /usr/local/bin/nginx-entrypoint.sh
 RUN sed -i 's/\r//' /usr/local/bin/nginx-entrypoint.sh
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r//' /usr/local/bin/entrypoint.sh
+COPY first-run.sh /usr/local/bin/first-run.sh
+RUN sed -i 's/\r//' /usr/local/bin/first-run.sh
+COPY migrate.sh /usr/local/bin/migrate.sh
+RUN sed -i 's/\r//' /usr/local/bin/migrate.sh
 
 ARG WKHTMLTOPDF_VERSION=0.12.6.1-3
 ARG WKHTMLTOPDF_DISTRO=bookworm
@@ -15,8 +20,8 @@ ENV NVM_DIR=/home/frappe/.nvm
 ENV PATH=${NVM_DIR}/versions/node/v${NODE_VERSION}/bin/:${PATH}
 
 RUN useradd -ms /bin/bash frappe \
-    && apt-get update \
-    && apt-get install --no-install-recommends -y \
+    && apt-get update -qq \
+    && apt-get install --no-install-recommends -qq -y \
     curl \
     git \
     vim \
@@ -57,12 +62,12 @@ RUN useradd -ms /bin/bash frappe \
     && if [ "$(uname -m)" = "x86_64" ]; then export ARCH=amd64; fi \
     && downloaded_file=wkhtmltox_${WKHTMLTOPDF_VERSION}.${WKHTMLTOPDF_DISTRO}_${ARCH}.deb \
     && curl -sLO https://github.com/wkhtmltopdf/packaging/releases/download/$WKHTMLTOPDF_VERSION/$downloaded_file \
-    && apt-get install -y ./$downloaded_file \
+    && apt-get install -y -qq ./$downloaded_file \
     && rm $downloaded_file \
     # Clean up
     && rm -rf /var/lib/apt/lists/* \
     && rm -fr /etc/nginx/sites-enabled/default \
-    && pip3 install frappe-bench \
+    && pip3 install --quiet frappe-bench \
     # Fixes for non-root nginx and logs to stdout
     && sed -i '/user www-data/d' /etc/nginx/nginx.conf \
     && ln -sf /dev/stdout /var/log/nginx/access.log && ln -sf /dev/stderr /var/log/nginx/error.log \
@@ -74,12 +79,14 @@ RUN useradd -ms /bin/bash frappe \
     && chown -R frappe:frappe /run/nginx.pid \
     && chmod 755 /usr/local/bin/nginx-entrypoint.sh \
     && chmod 755 /usr/local/bin/entrypoint.sh \
+    && chmod 755 /usr/local/bin/first-run.sh \
+    && chmod 755 /usr/local/bin/migrate.sh \
     && chmod 644 /templates/nginx/frappe.conf.template
 
 FROM base AS builder
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+RUN apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends -y \
     # For frappe framework
     wget \
     #for building arm64 binaries
@@ -128,13 +135,14 @@ RUN export APP_INSTALL_ARGS="" && \
     --no-procfile \
     --no-backups \
     --skip-redis-config-generation \
-    --verbose \
+    # --verbose \
     /home/frappe/frappe-bench && \
   cd /home/frappe/frappe-bench && \
   echo "{}" > sites/common_site_config.json && \
   find apps -mindepth 1 -path "*/.git" | xargs rm -fr
 
 COPY sites /home/frappe/frappe-bench/sites
+
 
 RUN cd /home/frappe/frappe-bench && bench build
 
@@ -159,8 +167,8 @@ CMD [ \
   "/home/frappe/frappe-bench/env/bin/gunicorn", \
   "--chdir=/home/frappe/frappe-bench/sites", \
   "--bind=0.0.0.0:8000", \
-  "--threads=4", \
-  "--workers=2", \
+  "--threads=6", \
+  "--workers=3", \
   "--worker-class=gthread", \
   "--worker-tmp-dir=/dev/shm", \
   "--timeout=120", \

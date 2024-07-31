@@ -1,5 +1,5 @@
 {
-    "default_site": "krp.kalvium",
+    "default_site": "frontend",
     "serve_default_site": true,
     "webserver_port": 8080,
     "dns_multitenant": true,
